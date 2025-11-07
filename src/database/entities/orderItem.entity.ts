@@ -1,13 +1,4 @@
-import {
-  Entity,
-  PrimaryGeneratedColumn,
-  Column,
-  CreateDateColumn,
-  ManyToOne,
-  JoinColumn,
-} from 'typeorm'
-import { Order } from './order.entity'
-import { Product } from './product.entity'
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn } from 'typeorm'
 
 @Entity('orderItems')
 export class OrderItem {
@@ -17,16 +8,8 @@ export class OrderItem {
   @Column({ type: 'uuid' })
   orderId: string
 
-  @ManyToOne(() => Order, (order) => order.items)
-  @JoinColumn({ name: 'orderId' })
-  order: Order
-
   @Column({ type: 'uuid' })
   productId: string
-
-  @ManyToOne(() => Product, (product) => product.orderItems, { eager: true })
-  @JoinColumn({ name: 'productId' })
-  product: Product
 
   @Column({ type: 'integer' })
   quantity: number

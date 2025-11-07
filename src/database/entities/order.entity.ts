@@ -1,15 +1,4 @@
-import {
-  Entity,
-  PrimaryGeneratedColumn,
-  Column,
-  CreateDateColumn,
-  UpdateDateColumn,
-  ManyToOne,
-  OneToMany,
-  JoinColumn,
-} from 'typeorm'
-import { User } from './user.entity'
-import { OrderItem } from './orderItem.entity'
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm'
 
 @Entity('orders')
 export class Order {
@@ -18,10 +7,6 @@ export class Order {
 
   @Column({ type: 'uuid' })
   userId: string
-
-  @ManyToOne(() => User, (user) => user.orders)
-  @JoinColumn({ name: 'userId' })
-  user: User
 
   @Column({ type: 'decimal', precision: 10, scale: 2 })
   totalAmount: number
@@ -37,8 +22,4 @@ export class Order {
 
   @UpdateDateColumn()
   updatedAt: Date
-
-  @OneToMany(() => OrderItem, (orderItem) => orderItem.order, { eager: true })
-  items: OrderItem[]
 }
-
