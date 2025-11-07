@@ -6,10 +6,9 @@ import { ValidationPipe, Logger } from '@nestjs/common'
 import { AppModule } from './app.module'
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule)
   const logger = new Logger('Bootstrap')
 
-  // ✅ DIRECT FRONTEND URL + LOCAL DEV
+  // ✅ DIRECT FRONTEND URLS
   const corsOrigins = [
     'https://ecommerce-frontend-five-kappa.vercel.app',
     'http://localhost:3000',
@@ -18,16 +17,17 @@ async function bootstrap() {
 
   logger.log(`🌐 CORS Origins: ${corsOrigins.join(', ')}`)
 
-  // ✅ ENABLE CORS PROPERLY
-  app.enableCors({
-    origin: corsOrigins,
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-    exposedHeaders: ['Content-Length', 'X-JSON-Response-Size'],
-    optionsSuccessStatus: 200,
-    preflightContinue: false,
-    maxAge: 3600,
+  // ✅ PASS CORS TO NestFactory.create() - THIS IS THE KEY FIX
+  const app = await NestFactory.create(AppModule, {
+    cors: {
+      origin: corsOrigins,
+      credentials: true,
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization'],
+      exposedHeaders: ['Content-Length', 'X-JSON-Response-Size'],
+      optionsSuccessStatus: 200,
+      preflightContinue: false,
+    },
   })
 
   // ✅ SET GLOBAL API PREFIX
