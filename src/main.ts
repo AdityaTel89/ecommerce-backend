@@ -1,5 +1,6 @@
-import * as dotenv from 'dotenv'
-dotenv.config()
+// ❌ DELETE THIS LINE - doesn't work on Render
+// import * as dotenv from 'dotenv'
+// dotenv.config()
 
 import { NestFactory } from '@nestjs/core'
 import { ValidationPipe, Logger } from '@nestjs/common'
@@ -8,32 +9,21 @@ import { AppModule } from './app.module'
 async function bootstrap() {
   const logger = new Logger('Bootstrap')
 
-  // ✅ DIRECT FRONTEND URLS
-  const corsOrigins = [
-    'https://ecommerce-frontend-five-kappa.vercel.app',
-    'http://localhost:3000',
-    'http://localhost:3001',
-  ]
+  const app = await NestFactory.create(AppModule)
 
-  logger.log(`🌐 CORS Origins: ${corsOrigins.join(', ')}`)
-
-  // ✅ PASS CORS TO NestFactory.create() - THIS IS THE KEY FIX
-  const app = await NestFactory.create(AppModule, {
-    cors: {
-      origin: corsOrigins,
-      credentials: true,
-      methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization'],
-      exposedHeaders: ['Content-Length', 'X-JSON-Response-Size'],
-      optionsSuccessStatus: 200,
-      preflightContinue: false,
-    },
+  app.enableCors({
+    origin: [
+      'https://ecommerce-frontend-five-kappa.vercel.app',
+      'http://localhost:3000',
+      'http://localhost:3001',
+    ],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
   })
 
-  // ✅ SET GLOBAL API PREFIX
   app.setGlobalPrefix('api')
 
-  // ✅ GLOBAL VALIDATION PIPE
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -46,14 +36,10 @@ async function bootstrap() {
 
   try {
     await app.listen(port, '0.0.0.0')
-
     logger.log('═══════════════════════════════════════════════════')
-    logger.log(`✅ Application Successfully Started`)
-    logger.log('═══════════════════════════════════════════════════')
-    logger.log(`🔗 Running on port: ${port}`)
+    logger.log(`✅ Server running on port ${port}`)
     logger.log(`📡 API Prefix: /api`)
-    logger.log(`🌐 CORS Origins: ${corsOrigins.join(', ')}`)
-    logger.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`)
+    logger.log(`🌐 CORS: Enabled`)
     logger.log('═══════════════════════════════════════════════════')
   } catch (error) {
     logger.error('❌ Failed to start:', error)
