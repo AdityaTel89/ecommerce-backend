@@ -9,9 +9,12 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule)
   const logger = new Logger('Bootstrap')
 
-  // ✅ CORS for production
+  // ✅ GET CORS FROM ENV
   const corsOrigin = process.env.CORS_ORIGIN || 'http://localhost:3000'
   
+  logger.log(`🌐 CORS Origin: ${corsOrigin}`)
+
+  // ✅ ENABLE CORS PROPERLY
   app.enableCors({
     origin: corsOrigin,
     credentials: true,
