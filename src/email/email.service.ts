@@ -1,51 +1,74 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import * as nodemailer from 'nodemailer';
-import { Order } from '../orders/entities/order.entity';
+import { Injectable, Logger } from '@nestjs/common'
+import { ConfigService } from '@nestjs/config'
+import * as nodemailer from 'nodemailer'
+import { Order } from '../orders/entities/order.entity'
 
 @Injectable()
 export class EmailService {
-  private transporter: nodemailer.Transporter;
+  private transporter: nodemailer.Transporter
+  private readonly logger = new Logger('EmailService')
 
   constructor(private configService: ConfigService) {
-    this.transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: this.configService.get('EMAIL_USER'),
-        pass: this.configService.get('EMAIL_PASSWORD'),
-      },
-    });
+    const emailUser = this.configService.get('EMAIL_USER')
+    const emailPassword = this.configService.get('EMAIL_PASSWORD')
+
+    if (emailUser && emailPassword) {
+      this.transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+          user: emailUser,
+          pass: emailPassword,
+        },
+      })
+      this.logger.log('✅ Email service initialized with Gmail')
+    } else {
+      this.logger.warn('⚠️ Email credentials not configured')
+    }
   }
 
   async sendOtpEmail(email: string, otp: string): Promise<void> {
     try {
-      const htmlContent = this.getOtpEmailTemplate(otp);
+      if (!this.transporter) {
+        this.logger.warn(`⚠️ Email service not configured, OTP not sent to ${email}`)
+        return
+      }
+
+      const htmlContent = this.getOtpEmailTemplate(otp)
 
       await this.transporter.sendMail({
         from: this.configService.get('EMAIL_FROM'),
         to: email,
-        subject: 'Your OTP for Email Verification - Foodzy',
+        subject: 'Your OTP for Email Verification',
         html: htmlContent,
-      });
+      })
+
+      this.logger.log(`✅ OTP email sent to ${email}`)
     } catch (error) {
-      console.error('Failed to send OTP email:', error);
-      throw new BadRequestException('Failed to send OTP email. Please check your email configuration.');
+      this.logger.error(`❌ Failed to send OTP email to ${email}:`, error)
+      // Don't throw - allow signup to continue
     }
   }
 
   async sendOrderConfirmation(email: string, order: Order): Promise<void> {
     try {
-      const htmlContent = this.getOrderConfirmationTemplate(order);
+      if (!this.transporter) {
+        this.logger.warn(`⚠️ Email service not configured, order confirmation not sent to ${email}`)
+        return
+      }
+
+      const htmlContent = this.getOrderConfirmationTemplate(order)
 
       await this.transporter.sendMail({
         from: this.configService.get('EMAIL_FROM'),
         to: email,
         subject: `Order Confirmation - Order #${order.id}`,
         html: htmlContent,
-      });
+      })
+
+      this.logger.log(`✅ Order confirmation email sent to ${email}`)
     } catch (error) {
-      console.error('Failed to send order confirmation email:', error);
-      throw new BadRequestException('Failed to send order confirmation email.');
+      this.logger.error(`❌ Failed to send order confirmation email to ${email}:`, error)
+      // Don't throw - allow order to continue
     }
   }
 
@@ -75,13 +98,12 @@ export class EmailService {
         <body>
           <div class="container">
             <div class="header">
-              <h1>🍕 Foodzy</h1>
-              <p>Email Verification</p>
+              <h1>Email Verification</h1>
+              <p>One-Time Password</p>
             </div>
             <div class="content">
               <p class="greeting">Hello!</p>
-              <p class="message">Thank you for registering with Foodzy! We're excited to have you on board.</p>
-              <p class="message">To complete your email verification, please use the OTP (One-Time Password) below:</p>
+              <p class="message">Thank you for registering! To complete your email verification, please use the OTP (One-Time Password) below:</p>
               
               <div class="otp-box">
                 <div class="otp-label">Your Verification Code</div>
@@ -93,13 +115,13 @@ export class EmailService {
               <p class="note">If you didn't request this verification, please ignore this email or contact our support team.</p>
             </div>
             <div class="footer">
-              <p>&copy; 2025 Foodzy. All rights reserved.</p>
+              <p>&copy; 2025. All rights reserved.</p>
               <p>This is an automated email. Please do not reply to this address.</p>
             </div>
           </div>
         </body>
       </html>
-    `;
+    `
   }
 
   private getOrderConfirmationTemplate(order: Order): string {
@@ -107,14 +129,14 @@ export class EmailService {
       .map(
         (item) => `
       <tr>
-        <td style="padding: 12px; border-bottom: 1px solid #ddd; text-align: left;">${item.product.name}</td>
+        <td style="padding: 12px; border-bottom: 1px solid #ddd; text-align: left;">${item.product?.name || 'Product'}</td>
         <td style="padding: 12px; border-bottom: 1px solid #ddd; text-align: center;">${item.quantity}</td>
         <td style="padding: 12px; border-bottom: 1px solid #ddd; text-align: right;">₹${Number(item.price).toFixed(2)}</td>
         <td style="padding: 12px; border-bottom: 1px solid #ddd; text-align: right;">₹${(Number(item.price) * item.quantity).toFixed(2)}</td>
       </tr>
     `,
       )
-      .join('');
+      .join('')
 
     return `
       <!DOCTYPE html>
@@ -127,7 +149,7 @@ export class EmailService {
             .header h1 { margin: 0; font-size: 28px; font-weight: 600; }
             .content { padding: 30px; }
             .order-id { background-color: #f5f5f5; padding: 15px; border-radius: 4px; margin: 20px 0; text-align: center; }
-            .order-id-label { font-size: 12px; color: #999; text-transform: uppercase; }
+            .order-id-label { font-size: 12px; color: #999; text-transform: uppercase; margin-bottom: 8px; }
             .order-id-value { font-size: 20px; font-weight: 600; color: #2196F3; }
             table { width: 100%; border-collapse: collapse; margin: 20px 0; }
             thead { background-color: #f5f5f5; }
@@ -175,22 +197,22 @@ export class EmailService {
               
               <div class="address">
                 <div class="address-label">Shipping Address</div>
-                <p style="margin: 8px 0; color: #333;">
-                  ${order.shippingAddress}<br>
-                  ${order.shippingCity}, ${order.shippingZipCode}
+                <p style="margin: 8px 0; color: #333; font-size: 14px;">
+                  ${order.shippingAddress || 'N/A'}<br>
+                  ${order.shippingCity || 'N/A'}, ${order.shippingZipCode || 'N/A'}
                 </p>
               </div>
               
               <p>We will notify you as soon as your order is shipped. You can track your order status anytime.</p>
-              <p>Thank you for shopping with Foodzy!</p>
+              <p>Thank you for shopping with us!</p>
             </div>
             <div class="footer">
-              <p>&copy; 2025 Foodzy. All rights reserved.</p>
+              <p>&copy; 2025. All rights reserved.</p>
               <p>This is an automated email. Please do not reply to this address.</p>
             </div>
           </div>
         </body>
       </html>
-    `;
+    `
   }
 }
