@@ -1,37 +1,61 @@
-import { Module } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { AuthModule } from './auth/auth.module';
-import { UsersModule } from './users/users.module';
-import { ProductsModule } from './products/products.module';
-import { OrdersModule } from './orders/orders.module';
-import { EmailModule } from './email/email.module';
+import { Controller, Get, Module } from '@nestjs/common'
+import { TypeOrmModule } from '@nestjs/typeorm'
+import { ConfigModule, ConfigService } from '@nestjs/config'
+import { databaseConfig } from './database/database.config'
+import { AuthModule } from './auth/auth.module'
+import { EmailModule } from './email/email.module'
+
+// ✅ Health Check Controller
+@Controller()
+export class HealthController {
+  @Get('health')
+  health() {
+    return { status: 'ok', message: 'Backend is running!' }
+  }
+
+  @Get('api/health')
+  apiHealth() {
+    return { status: 'ok', timestamp: new Date() }
+  }
+}
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: '.env',
+      envFilePath: `.env.${process.env.NODE_ENV || 'development'}`,
     }),
     TypeOrmModule.forRootAsync({
+      imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        type: 'postgres',
-        host: configService.get('DATABASE_HOST'),
-        port: configService.get('DATABASE_PORT'),
-        username: configService.get('DATABASE_USER'),
-        password: configService.get('DATABASE_PASSWORD'),
-        database: configService.get('DATABASE_NAME'),
-        entities: [__dirname + '/**/*.entity{.ts,.js}'],
-        synchronize: true,
-        logging: false,
-      }),
+      useFactory: (configService: ConfigService) => {
+        const databaseUrl = configService.get('DATABASE_URL')
+        if (databaseUrl) {
+          return {
+            type: 'postgres',
+            url: databaseUrl,
+            autoLoadEntities: true,
+            synchronize: configService.get('NODE_ENV') !== 'production',
+            ssl: { rejectUnauthorized: false },
+            logging: ['error', 'warn'],
+          }
+        }
+        return {
+          type: 'postgres',
+          host: configService.get('DB_HOST', 'localhost'),
+          port: configService.get('DB_PORT', 5432),
+          username: configService.get('DB_USERNAME', 'postgres'),
+          password: configService.get('DB_PASSWORD', 'postgres'),
+          database: configService.get('DB_NAME', 'ecommerce'),
+          autoLoadEntities: true,
+          synchronize: true,
+          logging: true,
+        }
+      },
     }),
     AuthModule,
-    UsersModule,
-    ProductsModule,
-    OrdersModule,
     EmailModule,
   ],
+  controllers: [HealthController],
 })
 export class AppModule {}
