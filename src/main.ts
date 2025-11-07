@@ -1,18 +1,12 @@
 import { NestFactory } from '@nestjs/core'
 import { ValidationPipe, Logger } from '@nestjs/common'
 import { AppModule } from './app.module'
-import * as helmet from 'helmet'
-import * as compression from 'compression'
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule)
   const logger = new Logger('Bootstrap')
 
-  // ✅ Security middleware
-  app.use(helmet())
-  app.use(compression())
-
-  // ✅ Enhanced CORS configuration
+  // ✅ CORS configuration
   const corsOrigin = process.env.CORS_ORIGIN || process.env.FRONTEND_URL || 'http://localhost:3000'
   
   app.enableCors({
@@ -25,7 +19,7 @@ async function bootstrap() {
     maxAge: 3600,
   })
 
-  // ✅ Global prefix for all routes
+  // ✅ Global prefix
   const apiPrefix = process.env.API_PREFIX || 'api'
   app.setGlobalPrefix(apiPrefix)
 
@@ -41,7 +35,7 @@ async function bootstrap() {
     }),
   )
 
-  // ✅ Error handling
+  // ✅ Start server
   const port = process.env.PORT || 3001
   const nodeEnv = process.env.NODE_ENV || 'development'
 
@@ -55,7 +49,6 @@ async function bootstrap() {
     logger.log(`🔗 URL: http://localhost:${port}`)
     logger.log(`📡 API Prefix: /${apiPrefix}`)
     logger.log(`🌐 CORS Origin: ${corsOrigin}`)
-    logger.log(`🔐 Security: Helmet + Compression Enabled`)
     logger.log('═══════════════════════════════════════════════════')
   } catch (error) {
     logger.error('❌ Failed to start application:', error)
