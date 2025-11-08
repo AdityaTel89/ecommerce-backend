@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import * as nodemailer from 'nodemailer'
-import { Order } from '../orders/entities/order.entity'
+import { Order } from '../database/entities/order.entity'
 
 @Injectable()
 export class EmailService {
@@ -13,14 +13,21 @@ export class EmailService {
     const emailPassword = this.configService.get('EMAIL_PASSWORD')
 
     if (emailUser && emailPassword) {
+      // ✅ Use port 465 with SSL for better reliability on cloud servers
       this.transporter = nodemailer.createTransport({
-        service: 'gmail',
+        host: 'smtp.gmail.com',
+        port: 465,
+        secure: true, // use SSL
         auth: {
           user: emailUser,
           pass: emailPassword,
         },
+        // Add timeout settings to fail faster
+        connectionTimeout: 10000, // 10 seconds
+        greetingTimeout: 10000,
+        socketTimeout: 10000,
       })
-      this.logger.log('✅ Email service initialized with Gmail')
+      this.logger.log('✅ Email service initialized with Gmail (port 465, SSL)')
     } else {
       this.logger.warn('⚠️ Email credentials not configured')
     }
@@ -33,18 +40,25 @@ export class EmailService {
         return
       }
 
-      const htmlContent = this.getOtpEmailTemplate(otp)
+      this.logger.log(`📧 Attempting to send OTP email to: ${email}`)
+      this.logger.log(`🔑 OTP: ${otp}`)
 
-      await this.transporter.sendMail({
-        from: this.configService.get('EMAIL_FROM'),
+      const htmlContent = this.getOtpEmailTemplate(otp)
+      const emailFrom = this.configService.get('EMAIL_USER')
+
+      const info = await this.transporter.sendMail({
+        from: `"E-Commerce" <${emailFrom}>`,
         to: email,
         subject: 'Your OTP for Email Verification',
         html: htmlContent,
       })
 
-      this.logger.log(`✅ OTP email sent to ${email}`)
+      this.logger.log(`✅ OTP email sent successfully to ${email}`)
+      this.logger.log(`📬 Message ID: ${info.messageId}`)
     } catch (error) {
-      this.logger.error(`❌ Failed to send OTP email to ${email}:`, error)
+      this.logger.error(`❌ Failed to send OTP email to ${email}:`, error.message)
+      this.logger.error(`Error code: ${error.code}`)
+      this.logger.error(`Error response: ${error.response}`)
       // Don't throw - allow signup to continue
     }
   }
@@ -56,18 +70,22 @@ export class EmailService {
         return
       }
 
-      const htmlContent = this.getOrderConfirmationTemplate(order)
+      this.logger.log(`📧 Sending order confirmation to: ${email}`)
 
-      await this.transporter.sendMail({
-        from: this.configService.get('EMAIL_FROM'),
+      const htmlContent = this.getOrderConfirmationTemplate(order)
+      const emailFrom = this.configService.get('EMAIL_USER')
+
+      const info = await this.transporter.sendMail({
+        from: `"E-Commerce" <${emailFrom}>`,
         to: email,
         subject: `Order Confirmation - Order #${order.id}`,
         html: htmlContent,
       })
 
       this.logger.log(`✅ Order confirmation email sent to ${email}`)
+      this.logger.log(`📬 Message ID: ${info.messageId}`)
     } catch (error) {
-      this.logger.error(`❌ Failed to send order confirmation email to ${email}:`, error)
+      this.logger.error(`❌ Failed to send order confirmation email to ${email}:`, error.message)
       // Don't throw - allow order to continue
     }
   }
@@ -115,7 +133,7 @@ export class EmailService {
               <p class="note">If you didn't request this verification, please ignore this email or contact our support team.</p>
             </div>
             <div class="footer">
-              <p>&copy; 2025. All rights reserved.</p>
+              <p>&copy; 2025 E-Commerce. All rights reserved.</p>
               <p>This is an automated email. Please do not reply to this address.</p>
             </div>
           </div>
@@ -125,18 +143,26 @@ export class EmailService {
   }
 
   private getOrderConfirmationTemplate(order: Order): string {
-    const itemsHtml = order.items
+    // ✅ Fixed: Use optional chaining and provide fallback for items
+    const orderItems = (order as any).items || []
+    
+    const itemsHtml = orderItems
       .map(
-        (item) => `
+        (item: any) => `
       <tr>
-        <td style="padding: 12px; border-bottom: 1px solid #ddd; text-align: left;">${item.product?.name || 'Product'}</td>
-        <td style="padding: 12px; border-bottom: 1px solid #ddd; text-align: center;">${item.quantity}</td>
-        <td style="padding: 12px; border-bottom: 1px solid #ddd; text-align: right;">₹${Number(item.price).toFixed(2)}</td>
-        <td style="padding: 12px; border-bottom: 1px solid #ddd; text-align: right;">₹${(Number(item.price) * item.quantity).toFixed(2)}</td>
+        <td style="padding: 12px; border-bottom: 1px solid #ddd; text-align: left;">${item.product?.name || item.productName || 'Product'}</td>
+        <td style="padding: 12px; border-bottom: 1px solid #ddd; text-align: center;">${item.quantity || 1}</td>
+        <td style="padding: 12px; border-bottom: 1px solid #ddd; text-align: right;">₹${Number(item.price || 0).toFixed(2)}</td>
+        <td style="padding: 12px; border-bottom: 1px solid #ddd; text-align: right;">₹${(Number(item.price || 0) * (item.quantity || 1)).toFixed(2)}</td>
       </tr>
     `,
       )
       .join('')
+
+    // ✅ Fixed: Use optional chaining for shipping fields
+    const shippingAddress = (order as any).shippingAddress || 'N/A'
+    const shippingCity = (order as any).shippingCity || 'N/A'
+    const shippingZipCode = (order as any).shippingZipCode || 'N/A'
 
     return `
       <!DOCTYPE html>
@@ -190,7 +216,7 @@ export class EmailService {
                   ${itemsHtml}
                   <tr class="total-row">
                     <td colspan="3" style="text-align: right;">Total Amount:</td>
-                    <td style="text-align: right;">₹${Number(order.totalAmount).toFixed(2)}</td>
+                    <td style="text-align: right;">₹${Number(order.totalAmount || 0).toFixed(2)}</td>
                   </tr>
                 </tbody>
               </table>
@@ -198,8 +224,8 @@ export class EmailService {
               <div class="address">
                 <div class="address-label">Shipping Address</div>
                 <p style="margin: 8px 0; color: #333; font-size: 14px;">
-                  ${order.shippingAddress || 'N/A'}<br>
-                  ${order.shippingCity || 'N/A'}, ${order.shippingZipCode || 'N/A'}
+                  ${shippingAddress}<br>
+                  ${shippingCity}, ${shippingZipCode}
                 </p>
               </div>
               
@@ -207,7 +233,7 @@ export class EmailService {
               <p>Thank you for shopping with us!</p>
             </div>
             <div class="footer">
-              <p>&copy; 2025. All rights reserved.</p>
+              <p>&copy; 2025 E-Commerce. All rights reserved.</p>
               <p>This is an automated email. Please do not reply to this address.</p>
             </div>
           </div>
