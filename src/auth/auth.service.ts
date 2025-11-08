@@ -150,8 +150,8 @@ export class AuthService {
       this.logger.log(`✅ OTP verified, updating user: ${email}`)
       await this.usersService.update(user.id, {
         isEmailVerified: true,
-        otp: null,
-        otpExpiry: null,
+        otp: undefined,      // ✅ FIXED: Changed from null to undefined
+        otpExpiry: undefined, // ✅ FIXED: Changed from null to undefined
       })
 
       const token = this.jwtService.sign({
