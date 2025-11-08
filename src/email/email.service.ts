@@ -1,75 +1,78 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
-import { Resend } from 'resend'
+import { MailerSend, EmailParams, Sender, Recipient } from 'mailersend'
 import { Order } from '../database/entities/order.entity'
 
 @Injectable()
 export class EmailService {
-  private resend: Resend
+  private mailerSend: MailerSend
   private readonly logger = new Logger('EmailService')
 
   constructor(private configService: ConfigService) {
-    const resendApiKey = this.configService.get<string>('RESEND_API_KEY')
+    const mailerSendApiKey = this.configService.get<string>('MAILERSEND_API_KEY')
     
-    if (resendApiKey) {
-      this.resend = new Resend(resendApiKey)
-      this.logger.log('✅ Email service initialized with Resend')
+    if (mailerSendApiKey) {
+      this.mailerSend = new MailerSend({
+        apiKey: mailerSendApiKey,
+      })
+      this.logger.log('✅ Email service initialized with MailerSend')
     } else {
-      this.logger.warn('⚠️ RESEND_API_KEY not configured')
+      this.logger.warn('⚠️ MAILERSEND_API_KEY not configured')
     }
   }
 
   async sendOtpEmail(email: string, otp: string): Promise<void> {
     try {
-      if (!this.resend) {
-        this.logger.warn(`⚠️ Resend not configured, OTP not sent to ${email}`)
+      if (!this.mailerSend) {
+        this.logger.warn(`⚠️ MailerSend not configured, OTP not sent to ${email}`)
         return
       }
 
       this.logger.log(`📧 Attempting to send OTP email to: ${email}`)
       this.logger.log(`🔑 OTP: ${otp}`)
 
-      const { data, error } = await this.resend.emails.send({
-        from: 'E-Commerce <onboarding@resend.dev>', // Use this for testing
-        to: email,
-        subject: 'Your OTP for Email Verification',
-        html: this.getOtpEmailTemplate(otp),
-      })
+      const fromEmail = this.configService.get<string>('MAILERSEND_FROM_EMAIL') || 'noreply@yourdomain.com'
+      const sentFrom = new Sender(fromEmail, 'E-Commerce')
+      const recipients = [new Recipient(email)]
 
-      if (error) {
-        throw error
-      }
+      const emailParams = new EmailParams()
+        .setFrom(sentFrom)
+        .setTo(recipients)
+        .setSubject('Your OTP for Email Verification')
+        .setHtml(this.getOtpEmailTemplate(otp))
+
+      await this.mailerSend.email.send(emailParams)
 
       this.logger.log(`✅ OTP email sent successfully to ${email}`)
-      this.logger.log(`📬 Email ID: ${data?.id}`)
     } catch (error) {
       this.logger.error(`❌ Failed to send OTP email to ${email}:`, error.message)
+      this.logger.error(`Error details:`, error)
       // Don't throw - allow signup to continue
     }
   }
 
   async sendOrderConfirmation(email: string, order: Order): Promise<void> {
     try {
-      if (!this.resend) {
-        this.logger.warn(`⚠️ Resend not configured, order confirmation not sent to ${email}`)
+      if (!this.mailerSend) {
+        this.logger.warn(`⚠️ MailerSend not configured, order confirmation not sent to ${email}`)
         return
       }
 
       this.logger.log(`📧 Sending order confirmation to: ${email}`)
 
-      const { data, error } = await this.resend.emails.send({
-        from: 'E-Commerce <onboarding@resend.dev>',
-        to: email,
-        subject: `Order Confirmation - Order #${order.id}`,
-        html: this.getOrderConfirmationTemplate(order),
-      })
+      const fromEmail = this.configService.get<string>('MAILERSEND_FROM_EMAIL') || 'noreply@yourdomain.com'
+      const sentFrom = new Sender(fromEmail, 'E-Commerce')
+      const recipients = [new Recipient(email)]
 
-      if (error) {
-        throw error
-      }
+      const emailParams = new EmailParams()
+        .setFrom(sentFrom)
+        .setTo(recipients)
+        .setSubject(`Order Confirmation - Order #${order.id}`)
+        .setHtml(this.getOrderConfirmationTemplate(order))
+
+      await this.mailerSend.email.send(emailParams)
 
       this.logger.log(`✅ Order confirmation email sent to ${email}`)
-      this.logger.log(`📬 Email ID: ${data?.id}`)
     } catch (error) {
       this.logger.error(`❌ Failed to send order confirmation email to ${email}:`, error.message)
       // Don't throw - allow order to continue
