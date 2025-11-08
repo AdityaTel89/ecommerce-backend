@@ -52,24 +52,23 @@ export class AuthService {
         })
       }
 
-      // Send email
-      try {
-        this.logger.log(`📧 Attempting to send OTP email to: ${email}`)
-        await this.emailService.sendOtpEmail(email, otp)
-        this.logger.log(`✅ Email sent successfully to: ${email}`)
-      } catch (emailError) {
-        this.logger.error(`❌ Email sending failed for ${email}:`, emailError.message)
-        this.logger.error(`Email error stack:`, emailError.stack)
-        // Continue anyway - OTP is saved in database
-        this.logger.warn(`⚠️ Continuing despite email failure. OTP: ${otp}`)
-      }
+      // ✅ Send email asynchronously without blocking the response
+      setImmediate(() => {
+        this.emailService.sendOtpEmail(email, otp)
+          .then(() => this.logger.log(`✅ Email sent successfully to: ${email}`))
+          .catch(err => {
+            this.logger.error(`❌ Email sending failed for ${email}:`, err.message)
+            this.logger.warn(`⚠️ OTP saved in DB: ${otp}`)
+          })
+      })
+
+      this.logger.log(`✅ Registration complete, returning response`)
 
       return {
         success: true,
         message: 'Registration successful. OTP sent to email.',
         email,
-        // TEMPORARY for debugging - remove in production
-        debug: process.env.NODE_ENV !== 'production' ? { otp } : undefined,
+        otp, // ⚠️ TEMPORARY - Shows OTP for testing. Remove in production!
       }
     } catch (error) {
       this.logger.error(`❌ Registration error for ${email}:`, error.message)
@@ -104,20 +103,21 @@ export class AuthService {
         })
       }
 
-      try {
-        this.logger.log(`📧 Sending OTP email to: ${email}`)
-        await this.emailService.sendOtpEmail(email, otp)
-        this.logger.log(`✅ OTP email sent to: ${email}`)
-      } catch (emailError) {
-        this.logger.error(`❌ Email sending failed:`, emailError.message)
-        this.logger.warn(`⚠️ OTP saved but email failed. OTP: ${otp}`)
-      }
+      // ✅ Send email asynchronously without blocking
+      setImmediate(() => {
+        this.emailService.sendOtpEmail(email, otp)
+          .then(() => this.logger.log(`✅ OTP email sent to: ${email}`))
+          .catch(err => {
+            this.logger.error(`❌ Email sending failed for ${email}:`, err.message)
+            this.logger.warn(`⚠️ OTP saved in DB: ${otp}`)
+          })
+      })
 
       return {
         success: true,
         message: 'OTP sent successfully',
         email,
-        debug: process.env.NODE_ENV !== 'production' ? { otp } : undefined,
+        otp, // ⚠️ TEMPORARY for testing
       }
     } catch (error) {
       this.logger.error(`❌ Send OTP error:`, error.message)
@@ -150,8 +150,8 @@ export class AuthService {
       this.logger.log(`✅ OTP verified, updating user: ${email}`)
       await this.usersService.update(user.id, {
         isEmailVerified: true,
-        otp: undefined,      // ✅ FIXED: Changed from null to undefined
-        otpExpiry: undefined, // ✅ FIXED: Changed from null to undefined
+        otp: undefined,
+        otpExpiry: undefined,
       })
 
       const token = this.jwtService.sign({
@@ -193,20 +193,23 @@ export class AuthService {
 
       await this.usersService.update(user.id, { otp, otpExpiry })
 
-      try {
-        this.logger.log(`📧 Sending new OTP email to: ${email}`)
-        await this.emailService.sendOtpEmail(email, otp)
-        this.logger.log(`✅ OTP resent to: ${email}`)
-      } catch (emailError) {
-        this.logger.error(`❌ Email sending failed:`, emailError.message)
-        this.logger.warn(`⚠️ OTP saved but email failed. OTP: ${otp}`)
-      }
+      // ✅ Send email asynchronously without blocking
+      setImmediate(() => {
+        this.emailService.sendOtpEmail(email, otp)
+          .then(() => this.logger.log(`✅ OTP resent to: ${email}`))
+          .catch(err => {
+            this.logger.error(`❌ Email sending failed for ${email}:`, err.message)
+            this.logger.warn(`⚠️ OTP saved in DB: ${otp}`)
+          })
+      })
+
+      this.logger.log(`✅ OTP updated for: ${email}`)
 
       return {
         success: true,
         message: 'OTP sent successfully',
         email,
-        debug: process.env.NODE_ENV !== 'production' ? { otp } : undefined,
+        otp, // ⚠️ TEMPORARY for testing
       }
     } catch (error) {
       this.logger.error(`❌ Resend OTP error:`, error.message)
