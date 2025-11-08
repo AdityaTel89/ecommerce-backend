@@ -1,5 +1,6 @@
 import { Controller, Post, Body, HttpCode, HttpStatus, Logger } from '@nestjs/common'
 import { AuthService } from './auth.service'
+import { SignupOtpDto, SendOtpDto, VerifyOtpDto, ResendOtpDto } from './dto/auth.dto'
 
 @Controller('auth')
 export class AuthController {
@@ -9,67 +10,68 @@ export class AuthController {
 
   @Post('signup-otp')
   @HttpCode(HttpStatus.CREATED)
-  async registerWithOtp(
-    @Body() body: { email: string; firstName: string; lastName: string },
-  ) {
-    this.logger.log(`Signup OTP request for: ${body.email}`)
+  async registerWithOtp(@Body() signupOtpDto: SignupOtpDto) {
+    this.logger.log(`📨 Signup OTP request for: ${signupOtpDto.email}`)
+    this.logger.log(`📋 Request body: ${JSON.stringify(signupOtpDto)}`)
     
-    if (!body.email || !body.firstName || !body.lastName) {
-      throw new Error('Email, firstName, and lastName are required')
+    try {
+      const result = await this.authService.registerWithoutPassword(
+        signupOtpDto.email,
+        signupOtpDto.firstName,
+        signupOtpDto.lastName,
+      )
+      
+      this.logger.log(`✅ Signup OTP successful for: ${signupOtpDto.email}`)
+      return result
+    } catch (error) {
+      this.logger.error(`❌ Signup OTP error for ${signupOtpDto.email}:`, error.message)
+      this.logger.error(`Stack trace:`, error.stack)
+      throw error
     }
-
-    const result = await this.authService.registerWithoutPassword(
-      body.email,
-      body.firstName,
-      body.lastName,
-    )
-    
-    this.logger.log(`Signup OTP successful for: ${body.email}`)
-    return result
   }
 
   @Post('send-otp')
   @HttpCode(HttpStatus.OK)
-  async sendOtp(@Body() body: { email: string }) {
-    this.logger.log(`Send OTP request for: ${body.email}`)
+  async sendOtp(@Body() sendOtpDto: SendOtpDto) {
+    this.logger.log(`📨 Send OTP request for: ${sendOtpDto.email}`)
     
-    if (!body.email) {
-      throw new Error('Email is required')
+    try {
+      const result = await this.authService.sendOtp(sendOtpDto.email)
+      this.logger.log(`✅ Send OTP successful for: ${sendOtpDto.email}`)
+      return result
+    } catch (error) {
+      this.logger.error(`❌ Send OTP error for ${sendOtpDto.email}:`, error.message)
+      throw error
     }
-
-    const result = await this.authService.sendOtp(body.email)
-    
-    this.logger.log(`Send OTP successful for: ${body.email}`)
-    return result
   }
 
   @Post('verify-otp')
   @HttpCode(HttpStatus.OK)
-  async verifyOtp(@Body() body: { email: string; otp: string }) {
-    this.logger.log(`Verify OTP request for: ${body.email}`)
+  async verifyOtp(@Body() verifyOtpDto: VerifyOtpDto) {
+    this.logger.log(`📨 Verify OTP request for: ${verifyOtpDto.email}`)
     
-    if (!body.email || !body.otp) {
-      throw new Error('Email and OTP are required')
+    try {
+      const result = await this.authService.verifyOtpEmail(verifyOtpDto.email, verifyOtpDto.otp)
+      this.logger.log(`✅ Verify OTP successful for: ${verifyOtpDto.email}`)
+      return result
+    } catch (error) {
+      this.logger.error(`❌ Verify OTP error for ${verifyOtpDto.email}:`, error.message)
+      throw error
     }
-
-    const result = await this.authService.verifyOtpEmail(body.email, body.otp)
-    
-    this.logger.log(`Verify OTP successful for: ${body.email}`)
-    return result
   }
 
   @Post('resend-otp')
   @HttpCode(HttpStatus.OK)
-  async resendOtp(@Body() body: { email: string }) {
-    this.logger.log(`Resend OTP request for: ${body.email}`)
+  async resendOtp(@Body() resendOtpDto: ResendOtpDto) {
+    this.logger.log(`📨 Resend OTP request for: ${resendOtpDto.email}`)
     
-    if (!body.email) {
-      throw new Error('Email is required')
+    try {
+      const result = await this.authService.resendOtp(resendOtpDto.email)
+      this.logger.log(`✅ Resend OTP successful for: ${resendOtpDto.email}`)
+      return result
+    } catch (error) {
+      this.logger.error(`❌ Resend OTP error for ${resendOtpDto.email}:`, error.message)
+      throw error
     }
-
-    const result = await this.authService.resendOtp(body.email)
-    
-    this.logger.log(`Resend OTP successful for: ${body.email}`)
-    return result
   }
 }

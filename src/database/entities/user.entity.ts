@@ -1,31 +1,31 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn } from 'typeorm'
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm'
 
 @Entity('users')
 export class User {
   @PrimaryGeneratedColumn('uuid')
   id: string
 
-  @Column({ type: 'varchar', length: 255, unique: true })
+  @Column({ unique: true })
   email: string
 
-  @Column({ type: 'varchar', length: 100 })
+  @Column({ nullable: true })
   firstName: string
 
-  @Column({ type: 'varchar', length: 100 })
+  @Column({ nullable: true })
   lastName: string
 
-  @Column({ type: 'varchar', length: 255, nullable: true })
-  password: string
+  @Column({ nullable: true, default: null })  // ← Add default: null
+  otp: string | null
 
-  @Column({ type: 'boolean', default: false })
+  @Column({ type: 'timestamp', nullable: true, default: null })  // ← Add default: null
+  otpExpiry: Date | null
+
+  @Column({ default: false })
   isEmailVerified: boolean
-
-  @Column({ type: 'varchar', length: 6, nullable: true })
-  otp: string
-
-  @Column({ type: 'timestamp', nullable: true })
-  otpExpiry: Date
 
   @CreateDateColumn()
   createdAt: Date
+
+  @UpdateDateColumn()
+  updatedAt: Date
 }

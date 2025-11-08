@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, UnauthorizedException, Logger } from '@nestjs/common'
+import { Injectable, BadRequestException, ConflictException, Logger } from '@nestjs/common'
 import { JwtService } from '@nestjs/jwt'
 import { UsersService } from '../users/users.service'
 import { EmailService } from '../email/email.service'
@@ -19,16 +19,21 @@ export class AuthService {
     lastName: string,
   ) {
     try {
+      this.logger.log(`🔍 Checking if user exists: ${email}`)
       const existingUser = await this.usersService.findByEmail(email)
 
       if (existingUser && existingUser.isEmailVerified) {
-        throw new BadRequestException('Email already registered')
+        this.logger.warn(`⚠️ User already registered and verified: ${email}`)
+        throw new ConflictException('Email already registered and verified')
       }
 
       const otp = this.generateOtp()
-      const otpExpiry = new Date(Date.now() + 5 * 60 * 1000)
+      const otpExpiry = new Date(Date.now() + 5 * 60 * 1000) // 5 minutes
+
+      this.logger.log(`🔑 Generated OTP for ${email}: ${otp}`)
 
       if (existingUser) {
+        this.logger.log(`📝 Updating existing unverified user: ${email}`)
         await this.usersService.update(existingUser.id, {
           firstName,
           lastName,
@@ -36,6 +41,7 @@ export class AuthService {
           otpExpiry,
         })
       } else {
+        this.logger.log(`➕ Creating new user: ${email}`)
         await this.usersService.create({
           email,
           firstName,
@@ -46,31 +52,42 @@ export class AuthService {
         })
       }
 
+      // Send email
       try {
+        this.logger.log(`📧 Attempting to send OTP email to: ${email}`)
         await this.emailService.sendOtpEmail(email, otp)
-      } catch (err) {
-        this.logger.warn(`Email sending failed for ${email}, but continuing`)
+        this.logger.log(`✅ Email sent successfully to: ${email}`)
+      } catch (emailError) {
+        this.logger.error(`❌ Email sending failed for ${email}:`, emailError.message)
+        this.logger.error(`Email error stack:`, emailError.stack)
+        // Continue anyway - OTP is saved in database
+        this.logger.warn(`⚠️ Continuing despite email failure. OTP: ${otp}`)
       }
 
       return {
         success: true,
         message: 'Registration successful. OTP sent to email.',
         email,
+        // TEMPORARY for debugging - remove in production
+        debug: process.env.NODE_ENV !== 'production' ? { otp } : undefined,
       }
     } catch (error) {
-      this.logger.error('Registration error:', error)
+      this.logger.error(`❌ Registration error for ${email}:`, error.message)
+      this.logger.error(`Error stack:`, error.stack)
       throw error
     }
   }
 
   async sendOtp(email: string) {
     try {
+      this.logger.log(`🔍 Looking up user: ${email}`)
       const otp = this.generateOtp()
       const otpExpiry = new Date(Date.now() + 5 * 60 * 1000)
 
       let user = await this.usersService.findByEmail(email)
 
       if (!user) {
+        this.logger.log(`➕ Creating new user for: ${email}`)
         user = await this.usersService.create({
           email,
           firstName: '',
@@ -79,52 +96,62 @@ export class AuthService {
           otpExpiry,
           isEmailVerified: false,
         })
-        this.logger.log(`New user created for email: ${email}`)
       } else {
+        this.logger.log(`📝 Updating OTP for existing user: ${email}`)
         await this.usersService.update(user.id, {
           otp,
           otpExpiry,
         })
-        this.logger.log(`OTP updated for existing user: ${email}`)
       }
 
       try {
+        this.logger.log(`📧 Sending OTP email to: ${email}`)
         await this.emailService.sendOtpEmail(email, otp)
-      } catch (err) {
-        this.logger.warn(`Email sending failed for ${email}, but continuing`)
+        this.logger.log(`✅ OTP email sent to: ${email}`)
+      } catch (emailError) {
+        this.logger.error(`❌ Email sending failed:`, emailError.message)
+        this.logger.warn(`⚠️ OTP saved but email failed. OTP: ${otp}`)
       }
 
       return {
         success: true,
         message: 'OTP sent successfully',
         email,
+        debug: process.env.NODE_ENV !== 'production' ? { otp } : undefined,
       }
     } catch (error) {
-      this.logger.error('Send OTP error:', error)
+      this.logger.error(`❌ Send OTP error:`, error.message)
       throw error
     }
   }
 
   async verifyOtpEmail(email: string, otp: string): Promise<any> {
     try {
+      this.logger.log(`🔍 Verifying OTP for: ${email}`)
       const user = await this.usersService.findByEmail(email)
 
       if (!user) {
+        this.logger.warn(`⚠️ User not found: ${email}`)
         throw new BadRequestException('User not found')
       }
 
+      this.logger.log(`🔑 Checking OTP. Provided: ${otp}, Stored: ${user.otp}`)
+
       if (!user.otp || user.otp !== otp) {
+        this.logger.warn(`⚠️ Invalid OTP for ${email}`)
         throw new BadRequestException('Invalid OTP')
       }
 
       if (!user.otpExpiry || user.otpExpiry < new Date()) {
+        this.logger.warn(`⚠️ OTP expired for ${email}`)
         throw new BadRequestException('OTP expired')
       }
 
+      this.logger.log(`✅ OTP verified, updating user: ${email}`)
       await this.usersService.update(user.id, {
         isEmailVerified: true,
-        otp: undefined as any,
-        otpExpiry: undefined as any,
+        otp: null,
+        otpExpiry: null,
       })
 
       const token = this.jwtService.sign({
@@ -132,7 +159,7 @@ export class AuthService {
         email: user.email,
       })
 
-      this.logger.log(`User verified and logged in: ${email}`)
+      this.logger.log(`🎫 JWT token generated for: ${email}`)
 
       return {
         success: true,
@@ -146,16 +173,18 @@ export class AuthService {
         },
       }
     } catch (error) {
-      this.logger.error('Verify OTP error:', error)
+      this.logger.error(`❌ Verify OTP error:`, error.message)
       throw error
     }
   }
 
   async resendOtp(email: string) {
     try {
+      this.logger.log(`🔍 Resending OTP for: ${email}`)
       const user = await this.usersService.findByEmail(email)
 
       if (!user) {
+        this.logger.warn(`⚠️ User not found: ${email}`)
         throw new BadRequestException('User not found')
       }
 
@@ -165,20 +194,22 @@ export class AuthService {
       await this.usersService.update(user.id, { otp, otpExpiry })
 
       try {
+        this.logger.log(`📧 Sending new OTP email to: ${email}`)
         await this.emailService.sendOtpEmail(email, otp)
-      } catch (err) {
-        this.logger.warn(`Email sending failed for ${email}, but continuing`)
+        this.logger.log(`✅ OTP resent to: ${email}`)
+      } catch (emailError) {
+        this.logger.error(`❌ Email sending failed:`, emailError.message)
+        this.logger.warn(`⚠️ OTP saved but email failed. OTP: ${otp}`)
       }
-
-      this.logger.log(`OTP resent to: ${email}`)
 
       return {
         success: true,
         message: 'OTP sent successfully',
         email,
+        debug: process.env.NODE_ENV !== 'production' ? { otp } : undefined,
       }
     } catch (error) {
-      this.logger.error('Resend OTP error:', error)
+      this.logger.error(`❌ Resend OTP error:`, error.message)
       throw error
     }
   }
