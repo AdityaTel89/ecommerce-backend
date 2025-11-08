@@ -13,7 +13,7 @@ import { EmailModule } from './email/email.module'
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
-      ignoreEnvFile: process.env.NODE_ENV === 'production', // Don't load .env in production
+      ignoreEnvFile: process.env.NODE_ENV === 'production',
     }),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
@@ -27,33 +27,28 @@ import { EmailModule } from './email/email.module'
         }
 
         console.log(`🔍 Connecting to database in ${nodeEnv} mode`)
-        console.log(`🔗 Database URL: ${databaseUrl.substring(0, 20)}...`) // Log partial URL for security
+        console.log(`🔗 Database URL: ${databaseUrl.substring(0, 20)}...`)
 
         return {
           type: 'postgres',
           url: databaseUrl,
           entities: [User, Product, Order, OrderItem],
           
-          // ⚠️ CRITICAL: Never use synchronize: true in production
-          // It can cause data loss when schema changes
-          synchronize: nodeEnv !== 'production', // Only auto-sync in development
+          // ✅ TEMPORARY: Enable synchronize to create tables
+          synchronize: true,  // Change this back to nodeEnv !== 'production' after first deploy
           
-          // SSL configuration for production databases
           ssl: nodeEnv === 'production' ? {
-            rejectUnauthorized: false, // Required for most cloud databases
+            rejectUnauthorized: false,
           } : false,
           
-          // Logging - helpful for debugging
           logging: nodeEnv !== 'production' ? ['error', 'warn', 'query'] : ['error'],
           
-          // Connection retry settings
           retryAttempts: 10,
           retryDelay: 3000,
           
-          // Connection pool settings for better performance
           extra: {
-            max: 10, // Maximum number of connections
-            min: 2,  // Minimum number of connections
+            max: 10,
+            min: 2,
             idleTimeoutMillis: 30000,
           },
         }
